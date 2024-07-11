@@ -39,14 +39,6 @@ print(contacts_response.text)
 print(deals_response.text)
 print(leads_response.text)
 
-# Fetch data from the account table in Supabase
-account_response = supabase.table("account").select("*").execute()
-account_data = account_response.data
-
-# Fetch data from the contact table in Supabase
-contact_supabase_response = supabase.table("contact").select("*").execute()
-contact_data = contact_supabase_response.data
-
 # Parse the JSON responses
 account_json_data = response.json()
 contacts_json_data = contacts_response.json()
@@ -57,6 +49,7 @@ leads_json_data = leads_response.json()
 extracted_account_data = []
 for record in account_json_data["output"]["records"]:
     extracted_record = {
+        "id": record["id"],
         "createdTime": record["createdTime"],
         "industry": record["fields"]["Industry"],
         "isDeleted": record["fields"]["IsDeleted"],
@@ -97,21 +90,24 @@ for record in extracted_account_data:
         'last_updated_at': record['updatedTime'],
         'domain': record['website']
     })
-    populated_account_payloads.append(populated_payload)
+    populated_account_payloads.append((populated_payload, record['id']))
 
-# Print the populated account payloads
-# for payload in populated_account_payloads:
-#     print(payload)
-
-# Insert the populated account payloads into the 'account' table
-# for payload in populated_account_payloads:
-#     response = supabase.table('account').insert(payload).execute()
-#     print(response)
+# Insert the populated account payloads into the 'account' table and insert the id into 'entity_integration' table
+for payload, salesforce_id in populated_account_payloads:
+    response = supabase.table('account').insert(payload).execute()
+    print(response)
+    if response:
+        integration_payload = {
+            "salesforce_id": salesforce_id
+        }
+        integration_response = supabase.table("entity_integration").insert(integration_payload).execute()
+        print(integration_response)
 
 # Extract the desired fields from contacts
 extracted_contacts_data = []
 for record in contacts_json_data["output"]["records"]:
     extracted_record = {
+        "id": record["id"],
         "createdTime": record["createdTime"],
         "updatedTime": record["updatedTime"]
     }
@@ -139,22 +135,25 @@ for record in extracted_contacts_data:
         'created_at': record['createdTime'],
         'last_updated_at': record['updatedTime'],
     })
-    populated_contact_payloads.append(populated_payload)
+    populated_contact_payloads.append((populated_payload, record['id']))
 
-# Print the populated contact payloads
-# for payload in populated_contact_payloads:
-#     print(payload)
-#
-# # Insert the populated payloads into the 'contact' table
-# for payload in populated_contact_payloads:
+# Insert the populated contact payloads into the 'contact' table and insert the id into 'entity_integration' table
+# for payload, salesforce_id in populated_contact_payloads:
 #     response = supabase.table('contact').insert(payload).execute()
 #     print(response)
+#     if response:
+#         integration_payload = {
+#             "salesforce_id": salesforce_id
+#         }
+#         integration_response = supabase.table("entity_integration").insert(integration_payload).execute()
+#         print(integration_response)
 
 # Extract the desired fields from deals
 extracted_deals_data = []
 for record in deals_json_data["output"]["records"]:
     fields = record["fields"]
     extracted_record = {
+        "id": record["id"],
         "name": fields["name"],
         "revenue": fields["amount"],
         "currency": None,  # Assuming currency is not provided, set to None
@@ -179,20 +178,29 @@ for record in deals_json_data["output"]["records"]:
     }
     extracted_deals_data.append(extracted_record)
 
-# # Print the extracted deal records
-# for deal in extracted_deals_data:
-#     print(deal)
-#
-# # Insert the extracted deal records into the 'deal' table
-# for deal_payload in extracted_deals_data:
-#     response = supabase.table('deal').insert(deal_payload).execute()
+# Populate the payload for each record in extracted_deals_data
+populated_deal_payloads = []
+for record in extracted_deals_data:
+    populated_payload = record.copy()
+    populated_deal_payloads.append((populated_payload, record['id']))
+
+# Insert the populated deal payloads into the 'deal' table and insert the id into 'entity_integration' table
+# for payload, salesforce_id in populated_deal_payloads:
+#     response = supabase.table('deal').insert(payload).execute()
 #     print(response)
+#     if response:
+#         integration_payload = {
+#             "salesforce_id": salesforce_id
+#         }
+#         integration_response = supabase.table("entity_integration").insert(integration_payload).execute()
+#         print(integration_response)
 
 # Extract the desired fields from leads
 extracted_leads_data = []
 for record in leads_json_data["output"]["records"]:
     fields = record["fields"]
     extracted_record = {
+        "id": record["id"],
         "created_at": fields["createdTime"],
         "is_deleted": False,
         "phone_book_id": 165,  # Assuming a default value or separate logic to fetch
@@ -213,11 +221,19 @@ for record in leads_json_data["output"]["records"]:
     }
     extracted_leads_data.append(extracted_record)
 
-# Print the extracted lead records
-for lead in extracted_leads_data:
-    print(lead)
+# Populate the payload for each record in extracted_leads_data
+populated_lead_payloads = []
+for record in extracted_leads_data:
+    populated_payload = record.copy()
+    populated_lead_payloads.append((populated_payload, record['id']))
 
-# Insert the extracted lead records into the 'lead' table
-for lead_payload in extracted_leads_data:
-    response = supabase.table('lead').insert(lead_payload).execute()
-    print(response)
+# Insert the populated lead payloads into the 'lead' table and insert the id into 'entity_integration' table
+# for payload, salesforce_id in populated_lead_payloads:
+#     response = supabase.table('lead').insert(payload).execute()
+#     print(response)
+#     if response:
+#         integration_payload = {
+#             "salesforce_id": salesforce_id
+#         }
+#         integration_response = supabase.table("entity_integration").insert(integration_payload).execute()
+#         print(integration_response)
