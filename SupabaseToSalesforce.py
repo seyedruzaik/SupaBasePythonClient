@@ -56,8 +56,8 @@ if account_data:
             "Content-Type": "application/json"
         }
 
-        # account_response = requests.post(create_accounts_url, headers=headers, json=account_payload)
-        # print(account_response.text)
+        account_response = requests.post(create_accounts_url, headers=headers, json=account_payload)
+        print(account_response.text)
 else:
     print("No records found in the account table")
 
@@ -173,8 +173,8 @@ if leads_data:
     }
 
     # Send each lead payload to the integration app
-    for lead_payload in lead_payloads:
-        lead_response = requests.post(create_leads_url, headers=headers, json=lead_payload)
-        print(lead_response.text)
+    # for lead_payload in lead_payloads:
+    #     lead_response = requests.post(create_leads_url, headers=headers, json=lead_payload)
+    #     print(lead_response.text)
 else:
     print("No records found in the leads table")
