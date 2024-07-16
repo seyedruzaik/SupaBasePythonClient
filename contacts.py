@@ -99,12 +99,12 @@ def from_salesforce(owner_id: str, tenant_id):
         #     supabase.table("entity_integration").insert(integration_payload).execute()
 
 
-def to_salesforce(created_by: str):
+def to_salesforce(user_id: str):
     """
     Export supabase Contact to Salesforce
     """
     integration_url = "https://api.integration.app/connections/salesforce/actions/create-contact/run"
-    contacts = supabase.table("contact").select("*, phone_book(*)").eq("created_by", created_by).execute().data
+    contacts = supabase.table("contact").select("*, phone_book(*)").eq("created_by", user_id).execute().data
     for contact in contacts:
         payload = map_i(contact)
         response = requests.post(integration_url, headers=headers, json=payload)
