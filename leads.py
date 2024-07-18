@@ -23,8 +23,6 @@ def map_i(row: dict) -> dict:
     Field mapping from supabase to salesforce
     """
 
-    # print(row)
-
     return {
         "fullName": f"{row['phone_book'].get('first_name', '')} {row['phone_book'].get('last_name', '')}".strip() or None,
         "firstName": row['phone_book'].get('first_name') or None,
@@ -55,21 +53,67 @@ def map_o(row: dict, tenant_id, owner_id) -> dict:
     stage_response = supabase.table('entity_stage').select('id').eq('group_id', group_id).limit(1).execute()
     stage_id = stage_response.data[0]['id'] if stage_response.data else None
 
+    # Get the priority ID using the group ID
+    priority_response = supabase.table('entity_priority').select('id').eq('group_id', group_id).limit(1).execute()
+    priority_id = priority_response.data[0]['id'] if priority_response.data else None
+
     return {
 
-        '_group_id': group_id,
-        '_entity_stage_id': stage_id,
-        '_first_name': fields['firstName'],
-        '_last_name': fields['lastName'],
-        '_company_name': fields['companyName'],
-        '_owner': owner_id,
-        '_title': fields['jobTitle'],
-        '_email': fields['primaryEmail'],
-        '_phone': fields['primaryPhone'],
-        '_location': fields['primaryAddress']['country'],
-        '_comments': '',
+        "lead": {
+            "created_at": fields["createdTime"],
+            "created_by": owner_id,
+            "last_updated_at": fields["updatedTime"],
+            "last_updated_by": owner_id,
+            "converted_deal_id": None,
+            "entity_stage_id": stage_id,
+            "entity_priority_id": priority_id,
+            "owner_id": owner_id,
+            "group_id": group_id,
+            "score": None,
+        },
+        "phone_book": {
+            "email": fields["primaryEmail"],  # No email field in API response
+            "phone": fields["primaryPhone"],
+            "website": None,
+            "street": fields["primaryAddress"]["street"],
+            "city": fields["primaryAddress"]["city"],
+            "state": fields["primaryAddress"]["state"],
+            "country": fields["primaryAddress"]["country"],
+            "department": None,  # No department field in API response
+            "description": None,
+            "created_by": owner_id,
+            "created_at": row["createdTime"],
+            "last_updated_at": row["updatedTime"],
+            "last_updated_by": owner_id,
+            "first_name": fields["firstName"],
+            "last_name": fields["lastName"],
+            "do_not_call": None,
+            "title": fields["jobTitle"],
+            "company": fields["companyName"],
+            "location": fields["primaryAddress"]["city"]
+        },
+        "source": {
+            "name": fields['source'] or "",
+            "created_at": row["createdTime"]
+        }
 
     }
+
+    # return {
+    #
+    #     '_group_id': group_id,
+    #     '_entity_stage_id': stage_id,
+    #     '_first_name': fields['firstName'],
+    #     '_last_name': fields['lastName'],
+    #     '_company_name': fields['companyName'],
+    #     '_owner': owner_id,
+    #     '_title': fields['jobTitle'],
+    #     '_email': fields['primaryEmail'],
+    #     '_phone': fields['primaryPhone'],
+    #     '_location': fields['primaryAddress']['country'],
+    #     '_comments': '',
+    #
+    # }
 
 
 def from_salesforce(owner_id: str, tenant_id):
@@ -80,9 +124,16 @@ def from_salesforce(owner_id: str, tenant_id):
     leads = requests.post(integration_url, headers=headers).json()
     for lead in leads["output"]["records"]:
         payload = map_o(lead, tenant_id, owner_id)
-        # print(lead["id"])
-        print("payload: ", payload)
-        # response = supabase.rpc('brain_create_deals', payload)
+        print("phone payload: ", payload['phone_book'])
+        print("source payload: ", payload['source'])
+        print("lead payload: ", payload['lead'])
+        phone_book_response = supabase.table("phone_book").insert(payload['phone_book']).execute()
+        phone_book_id = phone_book_response.data[0]['id']
+        source_response = supabase.table("deal_lead_source").insert(payload['source']).execute()
+        source_id = source_response.data[0]['id']
+        print("Source id: ", source_id)
+        lead_response = supabase.table("lead").insert(
+            {**payload['lead'], "phone_book_id": phone_book_id, "source_id": source_id}).execute()
         # TODO: Add/Update row to entity_integration table
         # if row:
         #     # Add/Update row to entity_integration table

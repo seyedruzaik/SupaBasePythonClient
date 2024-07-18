@@ -62,21 +62,67 @@ def map_o(row: dict, tenant_id, owner_id) -> dict:
     priority_id = priority_response.data[0]['id'] if priority_response.data else None
 
     return {
-
-        '_group_id': group_id,
-        '_entity_stage_id': stage_id,
-        '_entity_priority_id': priority_id,
-        '_first_name': fields['firstName'],
-        '_last_name': fields['lastName'],
-        '_company_name': '',
-        '_owner': owner_id,
-        '_title': fields['jobTitle'],
-        '_email': fields['primaryEmail'],
-        '_phone': fields['primaryPhone'],
-        '_location': fields['primaryAddress']['country'],
-        '_comments': '',
-
+        "phone_book": {
+            "email": fields["primaryEmail"],  # No email field in API response
+            "phone": fields["primaryPhone"],
+            "website": None,
+            "street": fields["primaryAddress"]["street"],
+            "city": fields["primaryAddress"]["city"],
+            "state": fields["primaryAddress"]["state"],
+            "country": fields["primaryAddress"]["country"],
+            "department": None,  # No department field in API response
+            "description": None,
+            "created_by": owner_id,
+            "created_at": row["createdTime"],
+            "last_updated_at": row["updatedTime"],
+            "last_updated_by": owner_id,
+            "first_name": fields["firstName"],
+            "last_name": fields["lastName"],  # No last name field in API response
+            "do_not_call": None,  # No do_not_call field in API response
+            "title": fields["jobTitle"],  # No title field in API response
+            "company": None,
+            "location": fields["primaryAddress"]["city"]
+        },
+        # "account": {
+        #     'group_id': group_id,
+        #     'entity_stage_id': stage_id,
+        #     'entity_priority_id': priority_id,
+        #     'domain': None,
+        #     'industry': '',
+        #     'no_of_employees': None,
+        #     'headquarters': '',
+        #     'owner_id': owner_id,
+        #     "created_by": owner_id,
+        #     "created_at": row["createdTime"],
+        #     "last_updated_at": row["updatedTime"],
+        #     "last_updated_by": owner_id
+        # },
+        "contact": {
+            'created_at': row["createdTime"],
+            'created_by': owner_id,
+            'last_updated_at': row["updatedTime"],
+            'last_updated_by': owner_id,
+            'entity_stage_id': stage_id,
+            'entity_priority_id': priority_id,
+            'group_id': group_id,
+        }
     }
+    # return {
+    #
+    #     '_group_id': group_id,
+    #     '_entity_stage_id': stage_id,
+    #     '_entity_priority_id': priority_id,
+    #     '_first_name': fields['firstName'],
+    #     '_last_name': fields['lastName'],
+    #     '_company_name': '',
+    #     '_owner': owner_id,
+    #     '_title': fields['jobTitle'],
+    #     '_email': fields['primaryEmail'],
+    #     '_phone': fields['primaryPhone'],
+    #     '_location': fields['primaryAddress']['country'],
+    #     '_comments': '',
+    #
+    # }
 
 
 def from_salesforce(owner_id: str, tenant_id):
@@ -87,9 +133,26 @@ def from_salesforce(owner_id: str, tenant_id):
     contacts = requests.post(integration_url, headers=headers).json()
     for contact in contacts["output"]["records"]:
         payload = map_o(contact, tenant_id, owner_id)
-        print(contact["id"])
-        print("payload: ", payload)
-        # response = supabase.rpc('brain_create_contacts', payload)
+        # print("phone payload: ", payload['phone_book'])
+        # print("accounts payload: ", payload['account'])
+        # print("contact payload: ", payload['contact'])
+        salesforce_id = contact['id']
+        print("salesforce id ", salesforce_id)
+        account_data = supabase.table('entity_integration').select('entity_based_id') \
+            .eq('salesforce_id', salesforce_id) \
+            .eq('entity_type_id', 2) \
+            .limit(1).execute()
+        entity_based_ids = account_data.data
+        if entity_based_ids:
+            account_id = entity_based_ids[0]['entity_based_id']
+            print(f"Entity Based ID: {account_id}")
+            phone_book_response = supabase.table("phone_book").insert(payload['phone_book']).execute()
+            phone_book_id = phone_book_response.data[0]['id']
+            contact_response = supabase.table("contact").insert(
+                {**payload['contact'], "phone_book_id": phone_book_id, "account_id": account_id}).execute()
+        else:
+            print("No records found.")
+
         # TODO: Add/Update row to entity_integration table
         # if row:
         #     # Add/Update row to entity_integration table

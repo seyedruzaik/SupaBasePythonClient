@@ -54,14 +54,36 @@ def map_o(row: dict, tenant_id, owner_id) -> dict:
 
     return {
 
-        '_group_id': group_id,
-        '_entity_stage_id': stage_id,
-        '_deal_name': row['name'],
-        '_expected_revenue': fields['amount'],
-        '_expected_close_date': '',
-        '_close_date': fields['closeTime'],
-
+        "deal": {
+            'group_id': group_id,
+            'entity_stage_id': stage_id,
+            'name': row['name'],
+            'expected_revenue': fields['amount'],
+            'expected_close_date': None,
+            'close_date': fields['closeTime'],
+            "created_by": owner_id,
+            "score": fields['probability'],
+            "created_at": row["createdTime"],
+            "last_updated_at": row["updatedTime"],
+            "last_updated_by": owner_id,
+            'owner_id': owner_id
+        },
+        "source": {
+            "name": fields['source'] or "",
+            "created_at": row["createdTime"]
+        }
     }
+
+    # return {
+    #
+    #     '_group_id': group_id,
+    #     '_entity_stage_id': stage_id,
+    #     '_deal_name': row['name'],
+    #     '_expected_revenue': fields['amount'],
+    #     '_expected_close_date': '',
+    #     '_close_date': fields['closeTime'],
+    #
+    # }
 
 
 def to_salesforce(owner_id: str):
@@ -90,9 +112,13 @@ def from_salesforce(owner_id: str, tenant_id):
     deals = requests.post(integration_url, headers=headers).json()
     for deal in deals["output"]["records"]:
         payload = map_o(deal, tenant_id, owner_id)
-        print(deal["id"])
-        print("payload: ", payload)
-        # response = supabase.rpc('brain_create_deals', payload)
+        print("source payload: ", payload['source'])
+        print("deal payload: ", payload['deal'])
+        source_response = supabase.table("deal_lead_source").insert(payload['source']).execute()
+        source_id = source_response.data[0]['id']
+        print("source id", source_id)
+        deal_response = supabase.table("deal").insert(
+            {**payload['deal'], "source_id": source_id}).execute()
         # TODO: Add/Update row to entity_integration table
         # if row:
         #     # Add/Update row to entity_integration table
