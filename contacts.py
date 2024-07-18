@@ -21,6 +21,11 @@ def map_i(row: dict) -> dict:
     """
     Field mapping from supabase to salesforce
     """
+    # Get the salesforce account ID using the supabase account ID
+    account_id = row['account_id']
+    account_response = supabase.table('entity_integration').select('salesforce_id').eq('entity_based_id', account_id).limit(1).execute()
+    salesforce_account_id = account_response.data[0]['salesforce_id'] if account_response.data else None
+
     return {
         "fullName": f"{row['phone_book'].get('first_name', '')} {row['phone_book'].get('last_name', '')}".strip(),
         "firstName": row['phone_book'].get('first_name', ''),
@@ -42,6 +47,7 @@ def map_i(row: dict) -> dict:
         "department": row['phone_book'].get('department', ''),
         "companyName": row['phone_book'].get('company', ''),
         "jobTitle": row['phone_book'].get('title', ''),
+        "companyId": salesforce_account_id
     }
 
 
@@ -180,5 +186,5 @@ def to_salesforce(user_id: str):
 
 
 if __name__ == "__main__":
-    # to_salesforce("6ec1e664-d14c-43ec-9276-3c360df337a1")
-    from_salesforce("16e53cc9-912a-4bdd-b864-ad19caf290e4", 43)
+    to_salesforce("6ec1e664-d14c-43ec-9276-3c360df337a1")
+    # from_salesforce("16e53cc9-912a-4bdd-b864-ad19caf290e4", 43)
