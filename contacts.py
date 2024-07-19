@@ -142,11 +142,12 @@ def from_salesforce(owner_id: str, tenant_id):
         # print("phone payload: ", payload['phone_book'])
         # print("accounts payload: ", payload['account'])
         # print("contact payload: ", payload['contact'])
-        salesforce_id = contact['fields']['companyId']
+        # salesforce_id = contact['fields']['companyId']
+        salesforce_id = contact['id']
         print("salesforce id ", salesforce_id)
         account_data = supabase.table('entity_integration').select('entity_based_id') \
             .eq('salesforce_id', salesforce_id) \
-            .eq('entity_type_id', 2) \
+            .eq('entity_type_id', 1) \
             .limit(1).execute()
         entity_based_ids = account_data.data
         if entity_based_ids:
