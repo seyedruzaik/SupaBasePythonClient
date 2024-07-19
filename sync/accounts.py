@@ -38,7 +38,7 @@ class Accounts:
         }
 
     @staticmethod
-    def map_o(row: dict, tenant_id) -> dict:
+    def map_o(row: dict, tenant_id, owner_id) -> dict:
         """Field mapping from salesforce to supabase"""
 
         fields = row['fields']
@@ -56,15 +56,41 @@ class Accounts:
         priority_id = priority_response.data[0]['id'] if priority_response.data else None
 
         return {
-            '_group_id': group_id,
-            '_entity_stage_id': stage_id,
-            '_entity_priority_id': priority_id,
-            '_company_name': row['name'],
-            '_website': fields['Website'],
-            '_industry': fields['Industry'],
-            '_no_of_employees': fields['NumberOfEmployees'],
-            '_description': fields['Description'],
-            '_headquarters': ''
+            "phone_book": {
+                "email": None,  # No email field in API response
+                "phone": fields["Phone"],
+                "website": fields["Website"],
+                "street": fields["BillingStreet"],
+                "city": fields["BillingCity"],
+                "state": fields["BillingState"],
+                "country": fields["BillingCountry"],
+                "department": None,  # No department field in API response
+                "description": fields["Description"],
+                "created_by": owner_id,
+                "created_at": row["createdTime"],
+                "last_updated_at": row["updatedTime"],
+                "last_updated_by": owner_id,
+                "first_name": row["name"],
+                "last_name": None,  # No last name field in API response
+                "do_not_call": None,  # No do_not_call field in API response
+                "title": None,  # No title field in API response
+                "company": fields["Industry"],
+                "location": fields["BillingCity"]
+            },
+            "account": {
+                'group_id': group_id,
+                'entity_stage_id': stage_id,
+                'entity_priority_id': priority_id,
+                'domain': fields['Website'],
+                'industry': fields['Industry'],
+                'no_of_employees': fields['NumberOfEmployees'],
+                'headquarters': '',
+                'owner_id': owner_id,
+                "created_by": owner_id,
+                "created_at": row["createdTime"],
+                "last_updated_at": row["updatedTime"],
+                "last_updated_by": owner_id
+            }
         }
 
     @staticmethod
@@ -108,7 +134,7 @@ class Accounts:
         integration_url = "https://api.integration.app/connections/salesforce/actions/get-all-accounts/run"
         accounts = self.session.post(integration_url).json()
         for account in accounts["output"]["records"]:
-            payload = self.map_o(account, tenant_id)
+            payload = self.map_o(account, tenant_id, owner_id)
             id_ = sb.rpc('brain_create_account', payload).execute().data
             # TODO: Add/Update row to entity_integration table
             sb.table("entity_integration").insert(

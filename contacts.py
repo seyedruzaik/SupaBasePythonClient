@@ -23,7 +23,9 @@ def map_i(row: dict) -> dict:
     """
     # Get the salesforce account ID using the supabase account ID
     account_id = row['account_id']
-    account_response = supabase.table('entity_integration').select('salesforce_id').eq('entity_based_id', account_id).limit(1).execute()
+    account_response = (supabase.table('entity_integration').select('salesforce_id')
+                        .eq('entity_based_id', account_id)
+                        .eq('entity_type_id', 1).limit(1).execute())
     salesforce_account_id = account_response.data[0]['salesforce_id'] if account_response.data else None
 
     return {
