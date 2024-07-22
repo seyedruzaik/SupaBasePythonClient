@@ -1,5 +1,6 @@
 from sync import sb
 from sync.accounts import Accounts
+from sync.contacts import Contacts
 
 
 class Sync:
@@ -13,14 +14,19 @@ class Sync:
         for connection in connections:
             connection["users"] = sb.table("user_role").select("user_id").eq("tenant_id",
                                                                              connection["tenant_id"]).execute().data
+
         return connections
 
     def sync_salesforce(self):
         for connection in self.salesforce_conns():
             accounts = Accounts(connection["connection_details"]["access_token"], "")
+            contacts = Contacts(connection["connection_details"]["access_token"], "")
             for user in connection["users"]:
-                accounts.to_salesforce(user["user_id"])
-                # accounts.from_salesforce()
+                # contacts.to_salesforce_contacts(user["user_id"])
+                contacts.from_salesforce_contacts(user["user_id"], 7)
+                # accounts.to_salesforce(user["user_id"])
+                # accounts.from_salesforce(user["user_id"], 7)
+
 
 if __name__ == "__main__":
     sync = Sync()

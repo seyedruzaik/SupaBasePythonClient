@@ -94,6 +94,20 @@ class Accounts:
         }
 
     @staticmethod
+    def check_salesforce_id(salesforce_id: str) -> bool:
+        """
+        Check if the given salesforce_id exists in the entity_integration table.
+
+        :param salesforce_id: The Salesforce ID to check
+        :return: True if the Salesforce ID exists, False otherwise
+        """
+        response = sb.table('entity_integration').select('id').eq('salesforce_id',
+                                                                  salesforce_id).execute()
+
+        # Return True if any rows are returned, otherwise False
+        return bool(response.data)
+
+    @staticmethod
     def track_record(id_: str, salesforce_id):
         is_in_db = sb.table("entity_integration").select("*").eq("entity_based_id", id_).execute().data
         if not is_in_db:
@@ -134,8 +148,41 @@ class Accounts:
         integration_url = "https://api.integration.app/connections/salesforce/actions/get-all-accounts/run"
         accounts = self.session.post(integration_url).json()
         for account in accounts["output"]["records"]:
-            payload = self.map_o(account, tenant_id, owner_id)
-            id_ = sb.rpc('brain_create_account', payload).execute().data
-            # TODO: Add/Update row to entity_integration table
-            sb.table("entity_integration").insert(
-                {"entity_based_id": account["id"], "salesforce_id": id_, "entity_type_id": 2}).execute()
+            account_id = account['id']
+
+            # Check if the salesforce_id exists before proceeding
+            if self.check_salesforce_id(account_id):
+                print(f"Salesforce ID {account_id} already exists in the entity_integration table.")
+                # Update the existing record
+                existing_record_response = sb.table('entity_integration').select('entity_based_id').eq('salesforce_id',
+                                                                                                       account_id).execute()
+                entity_based_id = existing_record_response.data[0]['entity_based_id']
+
+                # Get the phone_book_id from the account table
+                account_response = sb.table('account').select('phone_book_id').eq('id', entity_based_id).execute()
+                phone_book_id = account_response.data[0]['phone_book_id']
+                print("Phone book ID: ", phone_book_id, " Account ID: ", entity_based_id)
+
+                payload = self.map_o(account, tenant_id, owner_id)
+                print("phone payload: ", payload['phone_book'])
+                print("accounts payload: ", payload['account'])
+                print()
+                # Update the phone_book and account tables using the retrieved phone_book_id
+                sb.table("phone_book").update(payload['phone_book']).eq('id', phone_book_id).execute()
+                sb.table("account").update({**payload['account'], "phone_book_id": phone_book_id}).eq('id',
+                                                                                                      entity_based_id).execute()
+                print(f"Successfully updated Salesforce ID {account_id} in the phone_book and account tables.")
+            else:
+                payload = self.map_o(account, tenant_id, owner_id)
+                print("phone payload: ", payload['phone_book'])
+                print("accounts payload: ", payload['account'])
+                phone_book_response = sb.table("phone_book").insert(payload['phone_book']).execute()
+                phone_book_id = phone_book_response.data[0]['id']
+                account_response = sb.table("account").insert(
+                    {**payload['account'], "phone_book_id": phone_book_id}).execute()
+                id_ = account_response.data[0]['id']
+                print("id ", id_, "salesforce id: ", account['id'])
+                print()
+                # Add/Update row to entity_integration table
+                sb.table("entity_integration").insert(
+                    {"entity_based_id": id_, "salesforce_id": account["id"], "entity_type_id": 2}).execute()
