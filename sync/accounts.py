@@ -135,11 +135,13 @@ class Accounts:
                 self.track_record(account["id"], id_)
             else:
                 res_json = response.json()
-                duplicate_data = res_json.get("data", {}).get("response", {}).get("data", [])
-                if response.status_code == 400 and duplicate_data:
-                    salesforce_id = duplicate_data[0]["duplicateResult"]["matchResults"][0][
-                        "matchRecords"][0]["record"]["Id"]
-                    self.track_record(account["id"], salesforce_id)
+                # duplicate_data = res_json.get("data", {}).get("response", {}).get("data", [])
+                # if response.status_code == 400 and duplicate_data:
+                #     salesforce_id = duplicate_data[0]["duplicateResult"]["matchResults"][0][
+                #         "matchRecords"][0]["record"]["Id"]
+                #     self.track_record(account["id"], salesforce_id)
+                res_json = response.json()
+                print(res_json)
 
     def from_salesforce(self, owner_id: str, tenant_id):
         """
@@ -172,6 +174,7 @@ class Accounts:
                 sb.table("account").update({**payload['account'], "phone_book_id": phone_book_id}).eq('id',
                                                                                                       entity_based_id).execute()
                 print(f"Successfully updated Salesforce ID {account_id} in the phone_book and account tables.")
+                print()
             else:
                 payload = self.map_o(account, tenant_id, owner_id)
                 print("phone payload: ", payload['phone_book'])

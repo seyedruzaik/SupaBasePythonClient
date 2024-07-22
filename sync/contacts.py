@@ -134,15 +134,10 @@ class Contacts:
             if response.status_code == 200:
                 print(f"Successfully exported contact {payload['fullName']}")
                 id_ = response.json()["output"]["id"]
-                print("id 1", id_, "salesforce", contact["id"])
                 self.track_record(contact["id"], id_)
             else:
                 res_json = response.json()
-                duplicate_data = res_json.get("data", {}).get("response", {}).get("data", [])
-                if response.status_code == 400 and duplicate_data:
-                    salesforce_id = duplicate_data[0]["duplicateResult"]["matchResults"][0][
-                        "matchRecords"][0]["record"]["Id"]
-                    self.track_record(contact["id"], salesforce_id)
+                print(res_json)
 
     def from_salesforce_contacts(self, owner_id: str, tenant_id):
         """
