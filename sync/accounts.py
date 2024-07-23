@@ -11,6 +11,70 @@ class Accounts:
         self.session = session
         self.salesforce_id = salesforce_id
 
+    def delete_from_supabase(self, record_id: str):
+        """
+        Delete an account from Supabase, the entity_integration table, and Salesforce.
+
+        :param record_id: The ID of the account to delete
+        """
+        # Retrieve the salesforce_id from the entity_integration table
+        integration_response = sb.table('entity_integration').select('salesforce_id').eq('entity_based_id',
+                                                                                         record_id).execute()
+        if not integration_response.data:
+            print(
+                f"Failed to retrieve salesforce_id for account {record_id} from entity_integration: "
+                f"{integration_response.json()}")
+            return
+
+        salesforce_id = integration_response.data[0]['salesforce_id']
+
+        # Attempt to delete from Salesforce using the retrieved salesforce_id
+        self.delete_from_salesforce(salesforce_id)
+
+    def delete_from_salesforce(self, salesforce_id: str):
+        """
+        Delete an account from Salesforce and Supabase.
+
+        :param salesforce_id: The Salesforce ID of the account to delete
+        """
+        url = "https://api.integration.app/connections/salesforce/actions/delete-records/run"
+        payload = {
+            "id": salesforce_id
+        }
+        salesforce_response = self.session.post(url, json=payload)
+        if salesforce_response.status_code == 200:
+            print(f"Successfully deleted account {salesforce_id} from Salesforce")
+        else:
+            print(f"Failed to delete account {salesforce_id} from Salesforce: {salesforce_response.json()}")
+            return
+
+        # Retrieve the entity_based_id from the entity_integration table
+        integration_response = sb.table('entity_integration').select('entity_based_id').eq('salesforce_id',
+                                                                                           salesforce_id).execute()
+        if not integration_response.data:
+            print(
+                f"Failed to retrieve entity_based_id for salesforce_id {salesforce_id} from entity_integration: "
+                f"{integration_response.json()}")
+            return
+
+        entity_based_id = integration_response.data[0]['entity_based_id']
+
+        # Delete from Supabase account table
+        supabase_response = sb.table('account').delete().eq('id', entity_based_id).execute()
+        if supabase_response.data:
+            print(f"Successfully deleted account {entity_based_id} from Supabase")
+        else:
+            print(f"Failed to delete account {entity_based_id} from Supabase: {supabase_response.json()}")
+
+        # Delete from entity_integration table
+        integration_response = sb.table('entity_integration').delete().eq('entity_based_id', entity_based_id).execute()
+        if integration_response.data:
+            print(f"Successfully deleted entity integration for account {entity_based_id} from Supabase")
+        else:
+            print(
+                f"Failed to delete entity integration for account {entity_based_id} from Supabase: "
+                f"{integration_response.json()}")
+
     @staticmethod
     def map_i(row: dict) -> dict:
         """
