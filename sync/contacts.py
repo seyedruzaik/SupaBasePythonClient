@@ -10,29 +10,87 @@ class Contacts:
         self.session = session
         self.salesforce_id = salesforce_id
 
-    def delete_from_supabase(self, record_id: str):
+    def delete_orphaned_salesforce_ids(self):
         """
-        Delete a contact from Supabase, the entity_integration table, and Salesforce.
-
-        :param record_id: The ID of the contact to delete
+        Delete records from Supabase that have a salesforce_id in entity_integration but not in Salesforce.
         """
-        # Retrieve the salesforce_id from the entity_integration table
-        integration_response = sb.table('entity_integration').select('salesforce_id').eq('entity_based_id',
-                                                                                         record_id).execute()
+        # Retrieve all salesforce_ids from the entity_integration table
+        integration_response = sb.table('entity_integration').select('salesforce_id').eq('entity_type_id',
+                                                                                         1).execute()
         if not integration_response.data:
-            print(
-                f"Failed to retrieve salesforce_id for contact {record_id} from entity_integration: "
-                f"{integration_response.json()}")
+            print(f"Failed to retrieve salesforce_ids from entity_integration: {integration_response.json()}")
             return
 
-        salesforce_id = integration_response.data[0]['salesforce_id']
+        supabase_salesforce_ids = {record['salesforce_id'] for record in integration_response.data}
 
-        # Attempt to delete from Salesforce using the retrieved salesforce_id
-        self.delete_from_salesforce(salesforce_id)
+        # Retrieve all contacts from Salesforce
+        integration_url = "https://api.integration.app/connections/salesforce/actions/get-contacts/run"
+        contacts_response = self.session.post(integration_url).json()
+        salesforce_contacts = contacts_response.get("output", {}).get("records", [])
+        salesforce_contact_ids = {contact['id'] for contact in salesforce_contacts}
+
+        # Find salesforce_ids that are in Supabase but not in Salesforce
+        orphaned_salesforce_ids = supabase_salesforce_ids - salesforce_contact_ids
+
+        # Delete orphaned records from Supabase
+        for salesforce_id in orphaned_salesforce_ids:
+            print(f"Deleting orphaned salesforce_id: {salesforce_id}")
+            # Retrieve the entity_based_id from the entity_integration table
+            integration_response = sb.table('entity_integration').select('entity_based_id').eq('salesforce_id',
+                                                                                               salesforce_id).execute()
+            if not integration_response.data:
+                print(f"Failed to retrieve entity_based_id for salesforce_id {salesforce_id} from entity_integration: "
+                      f"{integration_response.json()}")
+                continue
+
+            entity_based_id = integration_response.data[0]['entity_based_id']
+
+            # Delete from Supabase contact table
+            supabase_response = sb.table('contact').delete().eq('id', entity_based_id).execute()
+            if supabase_response.data:
+                print(f"Successfully deleted contact {entity_based_id} from Supabase")
+            else:
+                print(f"Failed to delete contact {entity_based_id} from Supabase: {supabase_response.json()}")
+
+            # Delete from entity_integration table
+            integration_response = sb.table('entity_integration').delete().eq('entity_based_id',
+                                                                              entity_based_id).execute()
+            if integration_response.data:
+                print(f"Successfully deleted entity integration for contact {entity_based_id} from Supabase")
+            else:
+                print(f"Failed to delete entity integration for contact {entity_based_id} from Supabase: "
+                      f"{integration_response.json()}")
+
+    def delete_missing_in_supabase(self):
+        """
+        Delete Salesforce IDs that exist in Salesforce but are missing in Supabase.
+        """
+        # Retrieve all salesforce_ids from the entity_integration table
+        integration_response = sb.table('entity_integration').select('salesforce_id').eq('entity_type_id',
+                                                                                         1).execute()
+        if not integration_response.data:
+            print(f"Failed to retrieve salesforce_ids from entity_integration: {integration_response.json()}")
+            return
+
+        supabase_salesforce_ids = {record['salesforce_id'] for record in integration_response.data}
+
+        # Retrieve all contacts from Salesforce
+        integration_url = "https://api.integration.app/connections/salesforce/actions/get-contacts/run"
+        contacts_response = self.session.post(integration_url).json()
+        salesforce_contacts = contacts_response.get("output", {}).get("records", [])
+        salesforce_contact_ids = {contact['id'] for contact in salesforce_contacts}
+
+        # Find salesforce_ids that are in Salesforce but not in Supabase
+        missing_in_supabase_ids = salesforce_contact_ids - supabase_salesforce_ids
+
+        # Delete records from Salesforce that are not in Supabase
+        for salesforce_id in missing_in_supabase_ids:
+            print(f"Deleting salesforce_id from Salesforce: {salesforce_id}")
+            self.delete_from_salesforce(salesforce_id)
 
     def delete_from_salesforce(self, salesforce_id: str):
         """
-        Delete a contact from Salesforce and Supabase.
+        Delete a contact from Salesforce.
 
         :param salesforce_id: The Salesforce ID of the contact to delete
         """
@@ -45,34 +103,6 @@ class Contacts:
             print(f"Successfully deleted contact {salesforce_id} from Salesforce")
         else:
             print(f"Failed to delete contact {salesforce_id} from Salesforce: {salesforce_response.json()}")
-            return
-
-        # Retrieve the entity_based_id from the entity_integration table
-        integration_response = sb.table('entity_integration').select('entity_based_id').eq('salesforce_id',
-                                                                                           salesforce_id).execute()
-        if not integration_response.data:
-            print(
-                f"Failed to retrieve entity_based_id for salesforce_id {salesforce_id} from entity_integration: "
-                f"{integration_response.json()}")
-            return
-
-        entity_based_id = integration_response.data[0]['entity_based_id']
-
-        # Delete from Supabase contact table
-        supabase_response = sb.table('contact').delete().eq('id', entity_based_id).execute()
-        if supabase_response.data:
-            print(f"Successfully deleted contact {entity_based_id} from Supabase")
-        else:
-            print(f"Failed to delete contact {entity_based_id} from Supabase: {supabase_response.json()}")
-
-        # Delete from entity_integration table
-        integration_response = sb.table('entity_integration').delete().eq('entity_based_id', entity_based_id).execute()
-        if integration_response.data:
-            print(f"Successfully deleted entity integration for contact {entity_based_id} from Supabase")
-        else:
-            print(
-                f"Failed to delete entity integration for contact {entity_based_id} from Supabase: "
-                f"{integration_response.json()}")
 
     @staticmethod
     def map_i(row: dict) -> dict:

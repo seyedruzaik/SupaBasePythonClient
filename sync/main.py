@@ -27,6 +27,8 @@ class Sync:
             leads = Leads(connection["connection_details"]["access_token"], "")
             for user in connection["users"]:
                 print(user["user_id"])
+                leads.delete_missing_in_supabase()
+                # leads.delete_orphaned_salesforce_ids()
                 # deals.delete_from_salesforce("006dL000002lBDNQA2")
                 # deals.delete_from_supabase("de38aa2a-cde3-44f0-acd4-be4e1e4431a3")
                 # leads.delete_from_salesforce("00QdL000005xh7MUAQ")
