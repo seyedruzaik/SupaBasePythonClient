@@ -221,6 +221,44 @@ class Leads:
         else:
             sb.table("entity_integration").update({"salesforce_id": salesforce_id}).eq("entity_based_id", id_).execute()
 
+    def update_salesforce_lead(self, owner_id: str):
+        """
+        Update supabase leads to Salesforce
+        """
+        integration_url = "https://api.integration.app/connections/salesforce/actions/update-lead/run"
+        leads = sb.table("lead").select("*, phone_book(*), deal_lead_source(*)").eq("owner_id", owner_id).execute().data
+
+        for lead in leads:
+            lead_id = lead['id']
+            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+                              .eq('entity_based_id', lead_id).eq('entity_type_id',
+                                                                 0).execute())
+
+            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+                salesforce_id = salesforce_ids.data[0]['salesforce_id']
+
+                payload = self.map_i(lead)
+                payload["id"] = salesforce_id  # Add the salesforce_id to the payload
+
+                response = self.session.post(integration_url, json=payload)
+                response_data = response.json()
+
+                if response.status_code == 200:
+                    print(f"Lead {lead_id} updated successfully in Salesforce.")
+                    print()
+                else:
+                    res_json = response_data
+                    # Extracting the status and error code
+                    status = res_json['data']['response']['status']
+                    error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                    # Printing the status and error code
+                    print(f"Status: {status}", f"Error Code: {error_code}")
+                    print()
+            else:
+                print(f"No Salesforce ID found for lead {lead_id}!")
+                print()
+
     def to_salesforce_leads(self, owner_id: str):
         """
         Export supabase leads to Salesforce
@@ -235,9 +273,17 @@ class Leads:
                 print(f"Successfully exported lead {payload['fullName']}")
                 id_ = response.json()["output"]["id"]
                 self.track_record(lead["id"], id_)
-            else:
-                print(response.json())
                 print()
+            else:
+                res_json = response.json()
+                # Extracting the status and error code
+                status = res_json['data']['response']['status']
+                error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                # Printing the status and error code
+                print(f"Status: {status}", f"Error Code: {error_code}")
+                print()
+                continue
 
     def from_salesforce_leads(self, owner_id: str, tenant_id):
         """

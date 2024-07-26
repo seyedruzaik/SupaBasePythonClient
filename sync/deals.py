@@ -144,7 +144,7 @@ class Deals:
                 'group_id': group_id,
                 'entity_stage_id': stage_id,
                 'name': row['name'],
-                'expected_revenue': fields['amount'],
+                'revenue': fields['amount'],
                 'expected_close_date': None,
                 'close_date': fields['closeTime'],
                 "created_by": owner_id,
@@ -186,6 +186,45 @@ class Deals:
         else:
             sb.table("entity_integration").update({"salesforce_id": salesforce_id}).eq("entity_based_id", id_).execute()
 
+    def update_salesforce_deal(self, owner_id: str):
+        """
+        Update supabase deals to Salesforce
+        """
+        integration_url = "https://api.integration.app/connections/salesforce/actions/update-deal/run"
+        deals = sb.table("deal").select("*, entity_stage(*), deal_lead_source(*)").eq("owner_id",
+                                                                                      owner_id).execute().data
+
+        for deal in deals:
+            deal_id = deal['id']
+            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+                              .eq('entity_based_id', deal_id).eq('entity_type_id',
+                                                                 3).execute())
+
+            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+                salesforce_id = salesforce_ids.data[0]['salesforce_id']
+
+                payload = self.map_i(deal)
+                payload["id"] = salesforce_id  # Add the salesforce_id to the payload
+
+                response = self.session.post(integration_url, json=payload)
+                response_data = response.json()
+
+                if response.status_code == 200:
+                    print(f"Deal {deal_id} updated successfully in Salesforce.")
+                    print()
+                else:
+                    res_json = response_data
+                    # Extracting the status and error code
+                    status = res_json['data']['response']['status']
+                    error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                    # Printing the status and error code
+                    print(f"Status: {status}", f"Error Code: {error_code}")
+                    print()
+            else:
+                print(f"No Salesforce ID found for deal {deal_id}!")
+                print()
+
     def to_salesforce_deals(self, owner_id: str):
         """
         Export supabase deals to Salesforce
@@ -200,9 +239,17 @@ class Deals:
                 print(f"Successfully exported deal {payload['name']}")
                 id_ = response.json()["output"]["id"]
                 self.track_record(deal["id"], id_)
+                print()
             else:
                 res_json = response.json()
-                print(res_json)
+                # Extracting the status and error code
+                status = res_json['data']['response']['status']
+                error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                # Printing the status and error code
+                print(f"Status: {status}", f"Error Code: {error_code}")
+                print()
+                continue
 
     def from_salesforce_deals(self, owner_id: str, tenant_id):
         """

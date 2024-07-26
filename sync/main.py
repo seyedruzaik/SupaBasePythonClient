@@ -27,7 +27,11 @@ class Sync:
             leads = Leads(connection["connection_details"]["access_token"], "")
             for user in connection["users"]:
                 print(user["user_id"])
-                leads.delete_missing_in_supabase()
+                deals.update_salesforce_deal(user["user_id"])
+                # leads.update_salesforce_lead(user["user_id"])
+                # contacts.update_salesforce_contact(user["user_id"])
+                # accounts.update_salesforce_account(user["user_id"])
+                # leads.delete_missing_in_supabase()
                 # leads.delete_orphaned_salesforce_ids()
                 # deals.delete_from_salesforce("006dL000002lBDNQA2")
                 # deals.delete_from_supabase("de38aa2a-cde3-44f0-acd4-be4e1e4431a3")

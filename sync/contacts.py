@@ -216,6 +216,44 @@ class Contacts:
         else:
             sb.table("entity_integration").update({"salesforce_id": salesforce_id}).eq("entity_based_id", id_).execute()
 
+    def update_salesforce_contact(self, user_id: str):
+        """
+        Update supabase contacts to Salesforce
+        """
+        integration_url = "https://api.integration.app/connections/salesforce/actions/update-contacts/run"
+        contacts = sb.table("contact").select("*, phone_book(*)").eq("created_by", user_id).execute().data
+
+        for contact in contacts:
+            contact_id = contact['id']
+            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+                              .eq('entity_based_id', contact_id).eq('entity_type_id',
+                                                                    1).execute())
+
+            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+                salesforce_id = salesforce_ids.data[0]['salesforce_id']
+
+                payload = self.map_i(contact)
+                payload["id"] = salesforce_id  # Add the salesforce_id to the payload
+
+                response = self.session.post(integration_url, json=payload)
+                response_data = response.json()
+
+                if response.status_code == 200:
+                    print(f"Contact {contact_id} updated successfully in Salesforce.")
+                    print()
+                else:
+                    res_json = response_data
+                    # Extracting the status and error code
+                    status = res_json['data']['response']['status']
+                    error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                    # Printing the status and error code
+                    print(f"Status: {status}", f"Error Code: {error_code}")
+                    print()
+            else:
+                print(f"No Salesforce ID found for contact {contact_id}!")
+                print()
+
     def to_salesforce_contacts(self, user_id: str):
         """
         Export supabase contacts to Salesforce
@@ -229,9 +267,17 @@ class Contacts:
                 print(f"Successfully exported contact {payload['fullName']}")
                 id_ = response.json()["output"]["id"]
                 self.track_record(contact["id"], id_)
+                print()
             else:
                 res_json = response.json()
-                print(res_json)
+                # Extracting the status and error code
+                status = res_json['data']['response']['status']
+                error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                # Printing the status and error code
+                print(f"Status: {status}", f"Error Code: {error_code}")
+                print()
+                continue
 
     def from_salesforce_contacts(self, owner_id: str, tenant_id):
         """

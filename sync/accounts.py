@@ -128,6 +128,7 @@ class Accounts:
             "description": row['phone_book']['description'],
             "industry": row['industry'],
             "no_of_employees": row['no_of_employees'],
+            "annual_revenue": row['annual_revenue']
             # "owner_id": self.salesforce_id
         }
 
@@ -179,6 +180,7 @@ class Accounts:
                 'industry': fields['Industry'],
                 'no_of_employees': fields['NumberOfEmployees'],
                 'headquarters': '',
+                'annual_revenue': fields['AnnualRevenue'],
                 'owner_id': owner_id,
                 "created_by": owner_id,
                 "created_at": row["createdTime"],
@@ -227,15 +229,55 @@ class Accounts:
             if response.status_code == 200:
                 id_ = response.json()["output"]["id"]
                 self.track_record(account["id"], id_)
+                print(f"Successfully exported account {account['phone_book']['first_name']}")
+                print()
             else:
                 res_json = response.json()
-                # duplicate_data = res_json.get("data", {}).get("response", {}).get("data", [])
-                # if response.status_code == 400 and duplicate_data:
-                #     salesforce_id = duplicate_data[0]["duplicateResult"]["matchResults"][0][
-                #         "matchRecords"][0]["record"]["Id"]
-                #     self.track_record(account["id"], salesforce_id)
-                res_json = response.json()
-                print(res_json)
+                # Extracting the status and error code
+                status = res_json['data']['response']['status']
+                error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                # Printing the status and error code
+                print(f"Status: {status}", f"Error Code: {error_code}")
+                print()
+                continue
+
+    def update_salesforce_account(self, owner_id: str):
+        """
+        Update supabase accounts to salesforce
+        """
+        integration_url = "https://api.integration.app/connections/salesforce/actions/update-accounts/run"
+        accounts = sb.table("account").select("*, phone_book(*)").eq("owner_id", owner_id).execute().data
+
+        for account in accounts:
+            account_id = account['id']
+            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+                              .eq('entity_based_id', account_id).eq('entity_type_id', 2).execute())
+
+            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+                salesforce_id = salesforce_ids.data[0]['salesforce_id']
+
+                payload = self.map_i(account)
+                payload["id"] = salesforce_id  # Add the salesforce_id to the payload
+
+                response = self.session.post(integration_url, json=payload)
+                response_data = response.json()
+
+                if response.status_code == 200:
+                    print(f"Account {account_id} updated successfully in Salesforce.")
+                    print()
+                else:
+                    res_json = response_data
+                    # Extracting the status and error code
+                    status = res_json['data']['response']['status']
+                    error_code = res_json['data']['response']['data'][0]['errorCode']
+
+                    # Printing the status and error code
+                    print(f"Status: {status}", f"Error Code: {error_code}")
+                    print()
+            else:
+                print(f"No Salesforce ID found for account {account_id}!")
+                print()
 
     def from_salesforce(self, owner_id: str, tenant_id):
         """
@@ -279,7 +321,8 @@ class Accounts:
                     {**payload['account'], "phone_book_id": phone_book_id}).execute()
                 id_ = account_response.data[0]['id']
                 print("id ", id_, "salesforce id: ", account['id'])
-                print()
                 # Add/Update row to entity_integration table
                 sb.table("entity_integration").insert(
                     {"entity_based_id": id_, "salesforce_id": account["id"], "entity_type_id": 2}).execute()
+                print(f"Successfully created {id_} in the phone_book and account tables.")
+                print()
