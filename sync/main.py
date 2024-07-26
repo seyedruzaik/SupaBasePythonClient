@@ -27,7 +27,7 @@ class Sync:
             leads = Leads(connection["connection_details"]["access_token"], "")
             for user in connection["users"]:
                 print(user["user_id"])
-                deals.update_salesforce_deal(user["user_id"])
+                # deals.update_salesforce_deal(user["user_id"])
                 # leads.update_salesforce_lead(user["user_id"])
                 # contacts.update_salesforce_contact(user["user_id"])
                 # accounts.update_salesforce_account(user["user_id"])

@@ -238,7 +238,7 @@ class Leads:
                 salesforce_id = salesforce_ids.data[0]['salesforce_id']
 
                 payload = self.map_i(lead)
-                payload["id"] = salesforce_id  # Add the salesforce_id to the payload
+                payload["id"] = salesforce_id
 
                 response = self.session.post(integration_url, json=payload)
                 response_data = response.json()
