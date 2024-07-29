@@ -27,10 +27,11 @@ class Sync:
             leads = Leads(connection["connection_details"]["access_token"], "")
             for user in connection["users"]:
                 print(user["user_id"])
-                # deals.update_salesforce_deal(user["user_id"])
-                # leads.update_salesforce_lead(user["user_id"])
-                # contacts.update_salesforce_contact(user["user_id"])
-                # accounts.update_salesforce_account(user["user_id"])
+
+                """
+                    Delete records from both ways
+                """
+
                 # leads.delete_missing_in_supabase()
                 # leads.delete_orphaned_salesforce_ids()
                 # deals.delete_from_salesforce("006dL000002lBDNQA2")
@@ -41,13 +42,23 @@ class Sync:
                 # contacts.delete_from_supabase("4909efbc-827e-41da-8941-2b5c2f677140")
                 # accounts.delete_from_salesforce("001dL00000CbSs5QAF")
                 # accounts.delete_from_supabase("0324aadd-0220-4837-ad2d-8e273d7990f1")
-                # leads.from_salesforce_leads(user["user_id"], 7)
+
+                """
+                    Export Supabase records to Salesforce
+                """
+
                 # leads.to_salesforce_leads(user["user_id"])
-                # deals.from_salesforce_deals(user["user_id"], 7)
-                # deals.to_salesforce_deals(user["user_id"])
                 # contacts.to_salesforce_contacts(user["user_id"])
+                # accounts.to_salesforce(user["user_id"])
+                # deals.to_salesforce_deals(user["user_id"])
+
+                """
+                    Export Salesforce accounts to Salesforce
+                """
+
+                # leads.from_salesforce_leads(user["user_id"], 7)
+                # deals.from_salesforce_deals(user["user_id"], 7)
                 # contacts.from_salesforce_contacts(user["user_id"], 7)
-                accounts.to_salesforce(user["user_id"])
                 # accounts.from_salesforce(user["user_id"], 7)
 
 
