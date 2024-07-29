@@ -47,7 +47,7 @@ class Sync:
                 # deals.to_salesforce_deals(user["user_id"])
                 # contacts.to_salesforce_contacts(user["user_id"])
                 # contacts.from_salesforce_contacts(user["user_id"], 7)
-                # accounts.to_salesforce(user["user_id"])
+                accounts.to_salesforce(user["user_id"])
                 # accounts.from_salesforce(user["user_id"], 7)
 
 

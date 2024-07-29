@@ -113,7 +113,7 @@ class Contacts:
         account_id = row['account_id']
         account_response = (sb.table('entity_integration').select('salesforce_id')
                             .eq('entity_based_id', account_id)
-                            .eq('entity_type_id', 1).limit(1).execute())
+                            .eq('entity_type_id', 2).limit(1).execute())
         salesforce_account_id = account_response.data[0]['salesforce_id'] if account_response.data else None
 
         return {
@@ -216,43 +216,57 @@ class Contacts:
         else:
             sb.table("entity_integration").update({"salesforce_id": salesforce_id}).eq("entity_based_id", id_).execute()
 
-    def update_salesforce_contact(self, user_id: str):
+    # def update_salesforce_contact(self, user_id: str):
+    #     """
+    #     Update supabase contacts to Salesforce
+    #     """
+    #     integration_url = "https://api.integration.app/connections/salesforce/actions/update-contacts/run"
+    #     contacts = sb.table("contact").select("*, phone_book(*)").eq("created_by", user_id).execute().data
+    #
+    #     for contact in contacts:
+    #         contact_id = contact['id']
+    #         salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+    #                           .eq('entity_based_id', contact_id).eq('entity_type_id',
+    #                                                                 1).execute())
+    #
+    #         if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+    #             salesforce_id = salesforce_ids.data[0]['salesforce_id']
+    #
+    #             payload = self.map_i(contact)
+    #             payload["id"] = salesforce_id
+    #
+    #             response = self.session.post(integration_url, json=payload)
+    #             response_data = response.json()
+    #
+    #             if response.status_code == 200:
+    #                 print(f"Contact {contact_id} updated successfully in Salesforce.")
+    #                 print()
+    #             else:
+    #                 res_json = response_data
+    #                 # Extracting the status and error code
+    #                 status = res_json['data']['response']['status']
+    #                 error_code = res_json['data']['response']['data'][0]['errorCode']
+    #
+    #                 # Printing the status and error code
+    #                 print(f"Status: {status}", f"Error Code: {error_code}")
+    #                 print()
+    #         else:
+    #             print(f"No Salesforce ID found for contact {contact_id}!")
+    #             print()
+
+    @staticmethod
+    def extract_salesforce_id(json_response):
         """
-        Update supabase contacts to Salesforce
+        Extract Salesforce ID from the JSON response
         """
-        integration_url = "https://api.integration.app/connections/salesforce/actions/update-contacts/run"
-        contacts = sb.table("contact").select("*, phone_book(*)").eq("created_by", user_id).execute().data
-
-        for contact in contacts:
-            contact_id = contact['id']
-            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
-                              .eq('entity_based_id', contact_id).eq('entity_type_id',
-                                                                    1).execute())
-
-            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
-                salesforce_id = salesforce_ids.data[0]['salesforce_id']
-
-                payload = self.map_i(contact)
-                payload["id"] = salesforce_id
-
-                response = self.session.post(integration_url, json=payload)
-                response_data = response.json()
-
-                if response.status_code == 200:
-                    print(f"Contact {contact_id} updated successfully in Salesforce.")
-                    print()
-                else:
-                    res_json = response_data
-                    # Extracting the status and error code
-                    status = res_json['data']['response']['status']
-                    error_code = res_json['data']['response']['data'][0]['errorCode']
-
-                    # Printing the status and error code
-                    print(f"Status: {status}", f"Error Code: {error_code}")
-                    print()
-            else:
-                print(f"No Salesforce ID found for contact {contact_id}!")
-                print()
+        try:
+            match_records = json_response['data']['response']['data'][0]['duplicateResult']['matchResults'][0][
+                'matchRecords']
+            if match_records:
+                return match_records[0]['record']['Id']
+        except (KeyError, IndexError) as e:
+            print(f"Error extracting Salesforce ID: {e}")
+        return None
 
     def to_salesforce_contacts(self, user_id: str):
         """
@@ -275,9 +289,21 @@ class Contacts:
                 error_code = res_json['data']['response']['data'][0]['errorCode']
 
                 # Printing the status and error code
-                print(f"Status: {status}", f"Error Code: {error_code}")
-                print()
-                continue
+                if error_code == 'DUPLICATES_DETECTED':
+                    integration_update_url = ("https://api.integration.app/connections/salesforce/actions/update"
+                                              "-contacts/run")
+                    payload["id"] = self.extract_salesforce_id(res_json)
+                    updated_response = self.session.post(integration_update_url, json=payload)
+                    if updated_response.status_code == 200:
+                        print(f"Successfully updated contact {payload['fullName']}")
+                        print()
+                    else:
+                        print(updated_response.json())
+                    continue
+                else:
+                    print(f"Status: {status}", f"Error Code: {error_code}")
+                    print()
+                    continue
 
     def from_salesforce_contacts(self, owner_id: str, tenant_id):
         """
@@ -343,5 +369,7 @@ class Contacts:
                     print(
                         f"Successfully inserted Salesforce ID {salesforce_id} into the phone_book, contact, and "
                         f"entity_integration tables.")
+                    print()
                 else:
                     print("No records found.")
+                    print()

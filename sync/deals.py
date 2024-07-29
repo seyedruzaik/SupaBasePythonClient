@@ -186,52 +186,86 @@ class Deals:
         else:
             sb.table("entity_integration").update({"salesforce_id": salesforce_id}).eq("entity_based_id", id_).execute()
 
-    def update_salesforce_deal(self, owner_id: str):
+    # def update_salesforce_deal(self, owner_id: str):
+    #     """
+    #     Update supabase deals to Salesforce
+    #     """
+    #     integration_url = "https://api.integration.app/connections/salesforce/actions/update-deal/run"
+    #     deals = sb.table("deal").select("*, entity_stage(*), deal_lead_source(*)").eq("owner_id",
+    #                                                                                   owner_id).execute().data
+    #
+    #     for deal in deals:
+    #         deal_id = deal['id']
+    #         salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+    #                           .eq('entity_based_id', deal_id).eq('entity_type_id',
+    #                                                              3).execute())
+    #
+    #         if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+    #             salesforce_id = salesforce_ids.data[0]['salesforce_id']
+    #
+    #             payload = self.map_i(deal)
+    #             payload["id"] = salesforce_id
+    #
+    #             response = self.session.post(integration_url, json=payload)
+    #             response_data = response.json()
+    #
+    #             if response.status_code == 200:
+    #                 print(f"Deal {deal_id} updated successfully in Salesforce.")
+    #                 print()
+    #             else:
+    #                 res_json = response_data
+    #                 # Extracting the status and error code
+    #                 status = res_json['data']['response']['status']
+    #                 error_code = res_json['data']['response']['data'][0]['errorCode']
+    #
+    #                 # Printing the status and error code
+    #                 print(f"Status: {status}", f"Error Code: {error_code}")
+    #                 print()
+    #         else:
+    #             print(f"No Salesforce ID found for deal {deal_id}!")
+    #             print()
+
+    @staticmethod
+    def extract_salesforce_id(json_response):
         """
-        Update supabase deals to Salesforce
+        Extract Salesforce ID from the JSON response
         """
-        integration_url = "https://api.integration.app/connections/salesforce/actions/update-deal/run"
-        deals = sb.table("deal").select("*, entity_stage(*), deal_lead_source(*)").eq("owner_id",
-                                                                                      owner_id).execute().data
-
-        for deal in deals:
-            deal_id = deal['id']
-            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
-                              .eq('entity_based_id', deal_id).eq('entity_type_id',
-                                                                 3).execute())
-
-            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
-                salesforce_id = salesforce_ids.data[0]['salesforce_id']
-
-                payload = self.map_i(deal)
-                payload["id"] = salesforce_id
-
-                response = self.session.post(integration_url, json=payload)
-                response_data = response.json()
-
-                if response.status_code == 200:
-                    print(f"Deal {deal_id} updated successfully in Salesforce.")
-                    print()
-                else:
-                    res_json = response_data
-                    # Extracting the status and error code
-                    status = res_json['data']['response']['status']
-                    error_code = res_json['data']['response']['data'][0]['errorCode']
-
-                    # Printing the status and error code
-                    print(f"Status: {status}", f"Error Code: {error_code}")
-                    print()
-            else:
-                print(f"No Salesforce ID found for deal {deal_id}!")
-                print()
+        try:
+            match_records = json_response['data']['response']['data'][0]['duplicateResult']['matchResults'][0][
+                'matchRecords']
+            if match_records:
+                return match_records[0]['record']['Id']
+        except (KeyError, IndexError) as e:
+            print(f"Error extracting Salesforce ID: {e}")
+        return None
 
     def to_salesforce_deals(self, owner_id: str):
         """
         Export supabase deals to Salesforce
         """
         integration_url = "https://api.integration.app/connections/salesforce/actions/create-deal/run"
-        deals = sb.table("deal").select("*, entity_stage(*), deal_lead_source(*)").eq("owner_id",
-                                                                                      owner_id).execute().data
+        integration_update_url = "https://api.integration.app/connections/salesforce/actions/update-deal/run"
+
+        # Fetching the entity_based_id and salesforce_id from entity_integration table
+        entity_integration_data = sb.table("entity_integration").select("entity_based_id, salesforce_id").eq(
+            "entity_type_id", 3).execute().data
+        entity_based_ids = [item['entity_based_id'] for item in entity_integration_data]
+        salesforce_ids = {item['entity_based_id']: item['salesforce_id'] for item in entity_integration_data}
+
+        # Fetching all deals with the specified owner_id
+        all_deals = sb.table("deal").select("*, entity_stage(*), deal_lead_source(*)").eq("owner_id",
+                                                                                          owner_id).execute().data
+
+        # Filtering deals where the id is not in entity_based_ids
+        deals = [deal for deal in all_deals if deal["id"] not in entity_based_ids]
+
+        # Printing the deals where the id is in entity_based_ids
+        excluded_deals = [deal for deal in all_deals if deal["id"] in entity_based_ids]
+        # print("Deals excluded from export:")
+        # for excluded_deal in excluded_deals:
+        #     print(f"Excluded Deal ID: {excluded_deal['id']}, Name: {excluded_deal['name']}")
+
+        # Exporting deals
         for deal in deals:
             payload = self.map_i(deal)
             response = self.session.post(integration_url, json=payload)
@@ -245,11 +279,22 @@ class Deals:
                 # Extracting the status and error code
                 status = res_json['data']['response']['status']
                 error_code = res_json['data']['response']['data'][0]['errorCode']
+                print(f"Failed to export deal {payload['name']}: Status {status}, Error Code {error_code}")
 
-                # Printing the status and error code
-                print(f"Status: {status}", f"Error Code: {error_code}")
+        # Updating excluded deals
+        for excluded_deal in excluded_deals:
+            payload = self.map_i(excluded_deal)
+            payload["id"] = salesforce_ids.get(excluded_deal["id"], None)
+            response = self.session.post(integration_update_url, json=payload)
+            if response.status_code == 200:
+                print(f"Successfully updated excluded deal {payload['name']}")
                 print()
-                continue
+            else:
+                res_json = response.json()
+                # Extracting the status and error code
+                status = res_json['data']['response']['status']
+                error_code = res_json['data']['response']['data'][0]['errorCode']
+                print(f"Failed to update excluded deal {payload['name']}: Status {status}, Error Code {error_code}")
 
     def from_salesforce_deals(self, owner_id: str, tenant_id):
         """

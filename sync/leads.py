@@ -221,43 +221,54 @@ class Leads:
         else:
             sb.table("entity_integration").update({"salesforce_id": salesforce_id}).eq("entity_based_id", id_).execute()
 
-    def update_salesforce_lead(self, owner_id: str):
+    # def update_salesforce_lead(self, owner_id: str): """ Update supabase leads to Salesforce """ integration_url =
+    # "https://api.integration.app/connections/salesforce/actions/update-lead/run" leads = sb.table("lead").select(
+    # "*, phone_book(*), deal_lead_source(*)").eq("owner_id", owner_id).execute().data
+    #
+    #     for lead in leads:
+    #         lead_id = lead['id']
+    #         salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
+    #                           .eq('entity_based_id', lead_id).eq('entity_type_id',
+    #                                                              0).execute())
+    #
+    #         if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
+    #             salesforce_id = salesforce_ids.data[0]['salesforce_id']
+    #
+    #             payload = self.map_i(lead)
+    #             payload["id"] = salesforce_id
+    #
+    #             response = self.session.post(integration_url, json=payload)
+    #             response_data = response.json()
+    #
+    #             if response.status_code == 200:
+    #                 print(f"Lead {lead_id} updated successfully in Salesforce.")
+    #                 print()
+    #             else:
+    #                 res_json = response_data
+    #                 # Extracting the status and error code
+    #                 status = res_json['data']['response']['status']
+    #                 error_code = res_json['data']['response']['data'][0]['errorCode']
+    #
+    #                 # Printing the status and error code
+    #                 print(f"Status: {status}", f"Error Code: {error_code}")
+    #                 print()
+    #         else:
+    #             print(f"No Salesforce ID found for lead {lead_id}!")
+    #             print()
+
+    @staticmethod
+    def extract_salesforce_id(json_response):
         """
-        Update supabase leads to Salesforce
+        Extract Salesforce ID from the JSON response
         """
-        integration_url = "https://api.integration.app/connections/salesforce/actions/update-lead/run"
-        leads = sb.table("lead").select("*, phone_book(*), deal_lead_source(*)").eq("owner_id", owner_id).execute().data
-
-        for lead in leads:
-            lead_id = lead['id']
-            salesforce_ids = (sb.table('entity_integration').select('salesforce_id')
-                              .eq('entity_based_id', lead_id).eq('entity_type_id',
-                                                                 0).execute())
-
-            if salesforce_ids.data and salesforce_ids.data[0]['salesforce_id']:
-                salesforce_id = salesforce_ids.data[0]['salesforce_id']
-
-                payload = self.map_i(lead)
-                payload["id"] = salesforce_id
-
-                response = self.session.post(integration_url, json=payload)
-                response_data = response.json()
-
-                if response.status_code == 200:
-                    print(f"Lead {lead_id} updated successfully in Salesforce.")
-                    print()
-                else:
-                    res_json = response_data
-                    # Extracting the status and error code
-                    status = res_json['data']['response']['status']
-                    error_code = res_json['data']['response']['data'][0]['errorCode']
-
-                    # Printing the status and error code
-                    print(f"Status: {status}", f"Error Code: {error_code}")
-                    print()
-            else:
-                print(f"No Salesforce ID found for lead {lead_id}!")
-                print()
+        try:
+            match_records = json_response['data']['response']['data'][0]['duplicateResult']['matchResults'][0][
+                'matchRecords']
+            if match_records:
+                return match_records[0]['record']['Id']
+        except (KeyError, IndexError) as e:
+            print(f"Error extracting Salesforce ID: {e}")
+        return None
 
     def to_salesforce_leads(self, owner_id: str):
         """
@@ -281,9 +292,21 @@ class Leads:
                 error_code = res_json['data']['response']['data'][0]['errorCode']
 
                 # Printing the status and error code
-                print(f"Status: {status}", f"Error Code: {error_code}")
-                print()
-                continue
+                if error_code == 'DUPLICATES_DETECTED':
+                    integration_update_url = ("https://api.integration.app/connections/salesforce/actions/update-lead"
+                                              "/run")
+                    payload["id"] = self.extract_salesforce_id(res_json)
+                    updated_response = self.session.post(integration_update_url, json=payload)
+                    if updated_response.status_code == 200:
+                        print(f"Successfully updated lead {payload['fullName']}")
+                        print()
+                    else:
+                        print(updated_response.json())
+                    continue
+                else:
+                    print(f"Status: {status}", f"Error Code: {error_code}")
+                    print()
+                    continue
 
     def from_salesforce_leads(self, owner_id: str, tenant_id):
         """
