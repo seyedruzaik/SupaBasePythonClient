@@ -307,7 +307,7 @@ class Accounts:
 
     def from_salesforce(self, owner_id: str, tenant_id):
         """
-        Import salesforce accounts to Salesforce
+        Import salesforce accounts to Supabase
         """
         integration_url = "https://api.integration.app/connections/salesforce/actions/get-all-accounts/run"
         accounts = self.session.post(integration_url).json()
