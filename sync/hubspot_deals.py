@@ -64,8 +64,6 @@ class HubspotDeals:
             else:
                 continue
 
-
-
     def delete_missing_in_supabase(self):
         """
         Delete hubspot IDs that exist in hubspot but are missing in Supabase.
