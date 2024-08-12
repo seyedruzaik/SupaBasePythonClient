@@ -1,5 +1,3 @@
-import sys
-
 import requests
 
 from sync import sb
@@ -294,7 +292,8 @@ class HubspotContacts:
         for contact in contacts["output"]["records"]:
             hubspot_id = contact['id']
             company_name = contact['fields']['companyName']
-            phone_id = sb.table('phone_book').select('id').eq('first_name', company_name).limit(1).execute().data
+            phone_id = (sb.table('phone_book').select('id')
+                        .eq('first_name', company_name).limit(1).execute().data)
 
             # Check if the hubspot_id exists before proceeding
             if self.check_hubspot_id(hubspot_id):

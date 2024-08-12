@@ -307,7 +307,8 @@ class HubspotDeals:
 
                 # Update the deal_lead_source and deal tables using the retrieved source_id
                 sb.table("deal_lead_source").update(payload['source']).eq('id', source_id).execute()
-                sb.table("deal").update({**payload['deal'], "source_id": source_id}).eq('id', entity_based_id).execute()
+                (sb.table("deal").update({**payload['deal'], "source_id": source_id})
+                 .eq('id', entity_based_id).execute())
 
                 print(f"Successfully updated hubspot ID {hubspot_id} in the deal_lead_source and deal tables.")
                 print()

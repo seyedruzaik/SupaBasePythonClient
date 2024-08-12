@@ -282,8 +282,9 @@ class HubspotAccounts:
             if self.check_hubspot_id(account_id):
                 print(f"hubspot ID {account_id} already exists in the entity_integration table.")
                 # Update the existing record
-                existing_record_response = sb.table('entity_integration').select('entity_based_id').eq('hubspot_id',
-                                                                                                       account_id).execute()
+                existing_record_response = (sb.table('entity_integration').select('entity_based_id')
+                                            .eq('hubspot_id', account_id).execute())
+
                 entity_based_id = existing_record_response.data[0]['entity_based_id']
 
                 # Get the phone_book_id from the account table
@@ -297,8 +298,9 @@ class HubspotAccounts:
                 print()
                 # Update the phone_book and account tables using the retrieved phone_book_id
                 sb.table("phone_book").update(payload['phone_book']).eq('id', phone_book_id).execute()
-                sb.table("account").update({**payload['account'], "phone_book_id": phone_book_id}).eq('id',
-                                                                                                      entity_based_id).execute()
+                (sb.table("account").update({**payload['account'], "phone_book_id": phone_book_id})
+                 .eq('id', entity_based_id).execute())
+
                 print(f"Successfully updated hubspot ID {account_id} in the phone_book and account tables.")
                 print()
             else:
